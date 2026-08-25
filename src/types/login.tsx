@@ -4,18 +4,22 @@ export interface LoginInterface{
     remember: boolean;
 }
 
-export interface ResponseLogin{
-    user: {
-        id: string
-        fullname: string
-        email: string
-        cpf: string
-        isActive: boolean
-        createdAt: string
-        lastLogin: string
-    },
-    tokens: {
-        accessToken: string
-        refreshToken: string
-    }
-  }
+export interface UserResponse {
+    id: string
+    fullname: string
+    email: string
+    cpf: string
+    isActive: boolean
+    createdAt: string
+    lastLogin: string
+}
+
+export interface TokenPair {
+    accessToken: string
+    refreshToken: string
+}
+
+export interface ResponseLogin {
+    user: UserResponse
+    tokens: TokenPair
+}

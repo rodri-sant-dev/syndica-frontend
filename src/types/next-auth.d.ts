@@ -1,5 +1,4 @@
-import { DefaultSession } from "next-auth";
-import { DefaultJWT } from "next-auth/jwt";
+export {};
 
 interface SessionUser {
 	id: string;
@@ -9,26 +8,36 @@ interface SessionUser {
 	isActive: boolean;
 	createdAt: string;
 	lastLogin: string;
-	groups: string[];
+	roles: string[];
 }
 
 declare module "next-auth" {
-	interface Session extends DefaultSession {
+	interface Session {
 		user: SessionUser;
 		accessToken: string;
 		refreshToken: string;
+		error?: "RefreshAccessTokenError";
 	}
 
-	interface User extends SessionUser {
+	interface User {
+		id: string;
+		fullname: string;
+		email: string;
+		cpf: string;
+		isActive: boolean;
+		createdAt: string;
+		lastLogin: string;
+		roles: string[];
 		accessToken: string;
 		refreshToken: string;
 	}
 }
 
 declare module "next-auth/jwt" {
-	interface JWT extends DefaultJWT {
+	interface JWT {
 		user: SessionUser;
 		accessToken: string;
 		refreshToken: string;
+		error?: "RefreshAccessTokenError";
 	}
 }
