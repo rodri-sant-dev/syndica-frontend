@@ -10,23 +10,23 @@ export interface SignUpRegisterForm{
 }
 
 export const signUpSchema = z.object({
-  fullname: z.string().min(3, "Nome muito curto"),
+  fullname: z.string().min(3, "Full name must be at least 3 characters"),
   cpf: z
     .string()
-    .regex(/^\d{11}$/, "CPF deve conter 11 dígitos")
-    .refine(isValidCPF, "CPF inválido"),
-  email: z.string().email("E-mail inválido"),
-  password: z.string().min(8, "A senha precisa ter no mínimo 8 caracteres"),
+    .regex(/^\d{11}$|^\d{3}\.\d{3}\.\d{3}-\d{2}$/, "CPF must contain 11 digits")
+    .refine((cpf) => isValidCPF(cpf.replace(/\D/g, "")), "Invalid CPF"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   perfilPhoto: z
     .instanceof(File)
     .optional()
     .refine(
       (file) => !file || file.size <= 5 * 1024 * 1024,
-      "A imagem deve ter no máximo 5MB"
+      "Image must be at most 5MB"
     )
     .refine(
       (file) => !file || ["image/jpeg", "image/png"].includes(file.type),
-      "Apenas JPEG ou PNG são permitidos"
+      "Only JPEG or PNG are allowed"
     ),
 });
 
