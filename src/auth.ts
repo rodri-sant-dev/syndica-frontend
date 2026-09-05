@@ -38,7 +38,6 @@ async function refreshAccessToken(token: JWT) {
             error: undefined,
         };
     } catch (error) {
-        console.error("Failed to refresh access token", error);
         return {
             ...token,
             error: "RefreshAccessTokenError" as const,

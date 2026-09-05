@@ -5,13 +5,13 @@ export default auth((req) => {
     const isLoggedIn = !!req.auth;
     const { pathname, search } = req.nextUrl;
 
-    if (!isLoggedIn && pathname !== "/login" && pathname !== "/signup") {
+    if (!isLoggedIn && pathname !== "/login") {
         const loginUrl = new URL("/login", req.nextUrl.origin);
         loginUrl.searchParams.set("callbackUrl", `${pathname}${search}`);
         return NextResponse.redirect(loginUrl);
     }
 
-    if (isLoggedIn && (pathname === "/login" || pathname === "/signup")) {
+    if (isLoggedIn && (pathname === "/login")) {
         const homeUrl = new URL("/home", req.nextUrl.origin);
         return NextResponse.redirect(homeUrl);
     }

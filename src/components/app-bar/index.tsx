@@ -55,7 +55,7 @@ export default function AppTopBar() {
                     <IconButton onClick={handleAvatarClick} size="small">
                             <Avatar
                                 sx={{ width: 32, height: 32 }}
-                                src={session!.user.imageURI}
+                                src={session!.user.imageURI as string | undefined}
                                 alt={session?.user.fullname}
                             />
                     </IconButton>
