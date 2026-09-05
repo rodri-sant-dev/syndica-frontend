@@ -9,9 +9,7 @@ export interface UserResponse {
     fullname: string;
     email: string;
     cpf: string;
-    isActive: boolean;
-    createdAt: string;
-    lastLogin: string;
+    themePreference: string;
 }
 
 export interface TokenPair {
@@ -20,6 +18,7 @@ export interface TokenPair {
 }
 
 export interface ResponseLogin {
+    imageURI: string | null;
     user: UserResponse;
     tokens: TokenPair;
 }

@@ -58,7 +58,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 const { email, password, remember } =
                     credentials as unknown as LoginInterface;
 
-                const { user, tokens } = await getTokens({
+                const { user, tokens, imageURI } = await getTokens({
                     email,
                     password,
                     remember,
@@ -70,10 +70,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     fullname: user.fullname,
                     email: user.email,
                     cpf: user.cpf,
-                    isActive: user.isActive,
-                    createdAt: user.createdAt,
-                    lastLogin: user.lastLogin,
+                    themePreference: user.themePreference,
                     roles,
+                    imageURI,
                     accessToken: tokens.accessToken,
                     refreshToken: tokens.refreshToken,
                 };
@@ -89,10 +88,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     fullname: authUser.fullname,
                     email: authUser.email,
                     cpf: authUser.cpf,
-                    isActive: authUser.isActive,
-                    createdAt: authUser.createdAt,
-                    lastLogin: authUser.lastLogin,
+                    themePreference: authUser.themePreference,
                     roles: authUser.roles,
+                    imageURI: authUser.imageURI,
                 };
                 token.accessToken = authUser.accessToken;
                 token.refreshToken = authUser.refreshToken;

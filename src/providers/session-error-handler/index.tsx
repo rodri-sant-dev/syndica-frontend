@@ -18,8 +18,8 @@ export default function SessionErrorHandler() {
         const currentRoute = `${pathname}${query ? `?${query}` : ""}`;
         const callbackUrl = `/login?callbackUrl=${encodeURIComponent(currentRoute)}`;
 
-        void signOut({ callbackUrl });
-    }, [pathname, searchParams, session?.error]);
+        signOut({ callbackUrl });
+    }, [pathname, searchParams, session?.error, session?.user?.id]);
 
     return null;
 }

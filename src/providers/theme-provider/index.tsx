@@ -1,5 +1,5 @@
 "use client";
-import { ReactElement, ReactNode } from "react";
+import { ReactNode } from "react";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { CssBaseline } from "@mui/material";
@@ -9,6 +9,7 @@ export default function PersonalProviderTheme({
 }: {
     children: ReactNode;
 }) {
+
     const theme = createTheme({
         palette: {
             mode: "dark",

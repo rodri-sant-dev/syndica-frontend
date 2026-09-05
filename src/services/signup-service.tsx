@@ -25,7 +25,5 @@ export async function createUser(user: SignUpRegisterForm) {
     );
 
     const response = await baseApi.post("/token/create-user", formUser);
-    console.log(response.data);
-
     return { status: response.status };
 }

@@ -20,38 +20,24 @@ import {
     Logout as LogoutIcon,
 } from "@mui/icons-material";
 import DrawerMenu from "@/components/drawer-menu";
+
 import { blacklistToken } from "@/services/login-service";
 
 export default function AppTopBar() {
     const { data: session } = useSession();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
+
     const open = Boolean(anchorEl);
 
-    function handleAvatarClick(event: MouseEvent<HTMLElement>) {
-        setAnchorEl(event.currentTarget);
-    }
+    function handleAvatarClick(event: MouseEvent<HTMLElement>) { setAnchorEl(event.currentTarget); }
 
-    function handleMenuClose() {
-        setAnchorEl(null);
-    }
+    function handleMenuClose() { setAnchorEl(null); }
 
     async function handleLogout() {
-        handleMenuClose();
-
-        try {
-            if (session?.refreshToken) {
-                await blacklistToken(session.refreshToken);
-            }
-        } catch (error) {
-            console.error("Não foi possível invalidar o refresh token", error);
-        } finally {
-            await signOut({ callbackUrl: "/login" });
-        }
+        await blacklistToken(session!.refreshToken);
+        await signOut({ callbackUrl: "/login" });
     }
-
-    const fullname = session?.user?.fullname ?? "";
-    const initial = fullname.charAt(0).toUpperCase();
 
     return (
         <AppBar position="static" color="primary">
@@ -67,9 +53,10 @@ export default function AppTopBar() {
 
                 <Box>
                     <IconButton onClick={handleAvatarClick} size="small">
-                        <Avatar sx={{ width: 32, height: 32 }}>
-                            {initial}
-                        </Avatar>
+                            <Avatar
+                                sx={{ width: 32, height: 32 }}
+                                alt={session?.user.fullname}
+                            />
                     </IconButton>
                     <Menu
                         anchorEl={anchorEl}

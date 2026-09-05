@@ -2,13 +2,12 @@ export {};
 
 interface SessionUser {
     id: string;
+    themePreference: string;
     fullname: string;
     email: string;
     cpf: string;
-    isActive: boolean;
-    createdAt: string;
-    lastLogin: string;
     roles: string[];
+    imageURI: string | null;
 }
 
 declare module "next-auth" {
@@ -24,10 +23,9 @@ declare module "next-auth" {
         fullname: string;
         email: string;
         cpf: string;
-        isActive: boolean;
-        createdAt: string;
-        lastLogin: string;
+        themePreference: string;
         roles: string[];
+        imageURI: string | null;
         accessToken: string;
         refreshToken: string;
     }
