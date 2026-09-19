@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import {
   ArrowUpRight,
   Bell,
@@ -9,13 +12,16 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  Menu,
   MessageSquare,
   MoreHorizontal,
   Settings,
   UsersRound,
+  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "cn"
 
 const navigationItems = [
   { label: "Visão geral", icon: LayoutDashboard, active: true },
@@ -66,10 +72,50 @@ const chartItems = [
 ]
 
 export default function HomePage() {
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false)
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsNavigationOpen(false)
+        setIsProfileMenuOpen(false)
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = isNavigationOpen ? "hidden" : ""
+
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [isNavigationOpen])
+
   return (
     <main className="min-h-svh bg-muted/40">
-      <div className="flex min-h-svh w-full">
-        <aside className="flex w-full shrink-0 flex-col border-b bg-background px-4 py-5 sm:px-6 lg:sticky lg:top-0 lg:h-svh lg:max-h-svh lg:w-72 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-5">
+      <div className="min-h-svh w-full">
+        {isNavigationOpen ? (
+          <button
+            type="button"
+            aria-label="Fechar menu principal"
+            className="fixed inset-0 z-40 bg-foreground/20 lg:hidden"
+            onClick={() => setIsNavigationOpen(false)}
+          />
+        ) : null}
+
+        <aside
+          id="menu-principal"
+          className={cn(
+            "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100%-2rem)] flex-col overflow-y-auto border-r bg-background px-4 py-5 shadow-xl transition-transform sm:px-6 lg:z-auto lg:max-w-none lg:px-5 lg:shadow-none",
+            isNavigationOpen ? "translate-x-0" : "-translate-x-full",
+            "lg:translate-x-0"
+          )}
+        >
           <div className="flex items-center gap-3 px-2">
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Building2 aria-hidden="true" />
@@ -78,11 +124,21 @@ export default function HomePage() {
               <span className="text-lg font-semibold tracking-tight">syndica</span>
               <span className="text-xs text-muted-foreground">Gestão condominial</span>
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto lg:hidden"
+              aria-label="Fechar menu principal"
+              onClick={() => setIsNavigationOpen(false)}
+            >
+              <X aria-hidden="true" />
+            </Button>
           </div>
 
          
 
-          <nav className="mt-8 flex flex-1 flex-col gap-1" aria-label="Menu principal">
+          <nav className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto lg:mt-8" aria-label="Menu principal">
             <span className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               Menu principal
             </span>
@@ -114,22 +170,9 @@ export default function HomePage() {
               )
             })}
 
-            <div className="mt-auto mb-5 h-px bg-border" />
-            <Button type="button" variant="ghost" className="w-full justify-start gap-3 px-3 text-muted-foreground">
-              <Settings aria-hidden="true" data-icon="inline-start" />
-              Configurações
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full justify-start gap-3 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut aria-hidden="true" data-icon="inline-start" />
-              Sair
-            </Button>
           </nav>
 
-          <div className="mt-6 flex items-center gap-3 border-t pt-5">
+          <div className="relative mt-auto flex items-center gap-3 border-t pt-4 lg:mt-6 lg:pt-5">
             <div className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-secondary-foreground">
               AO
             </div>
@@ -137,21 +180,68 @@ export default function HomePage() {
               <span className="truncate text-sm font-medium">Ana Oliveira</span>
               <span className="text-xs text-muted-foreground">Administradora</span>
             </div>
-            <MoreHorizontal aria-hidden="true" className="text-muted-foreground" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Abrir opções do perfil"
+              aria-expanded={isProfileMenuOpen}
+              aria-controls="opcoes-do-perfil"
+              onClick={() => setIsProfileMenuOpen((isOpen) => !isOpen)}
+            >
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
+            {isProfileMenuOpen ? (
+              <div
+                id="opcoes-do-perfil"
+                className="absolute right-0 bottom-full mb-2 flex w-48 flex-col gap-1 rounded-lg border bg-background p-1 shadow-lg"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="justify-start gap-3 px-3"
+                  onClick={() => setIsProfileMenuOpen(false)}
+                >
+                  <Settings aria-hidden="true" data-icon="inline-start" />
+                  Configurações
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="justify-start gap-3 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setIsProfileMenuOpen(false)}
+                >
+                  <LogOut aria-hidden="true" data-icon="inline-start" />
+                  Sair
+                </Button>
+              </div>
+            ) : null}
           </div>
         </aside>
 
-        <section className="min-h-svh min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-9">
+        <section className="min-h-svh min-w-0 overflow-hidden px-3 py-6 sm:px-6 lg:ml-72 lg:px-10 lg:py-9">
           <div className="flex w-full flex-col gap-8">
             <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="self-start lg:hidden"
+                  aria-label="Abrir menu principal"
+                  aria-expanded={isNavigationOpen}
+                  aria-controls="menu-principal"
+                  onClick={() => setIsNavigationOpen(true)}
+                >
+                  <Menu aria-hidden="true" />
+                </Button>
                 <p className="text-sm text-muted-foreground">Sexta-feira, 18 de setembro de 2026</p>
                 <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Bom dia, Ana.</h1>
                 <p className="text-sm text-muted-foreground">
                   Aqui está o resumo do Residencial Aurora.
                 </p>
               </div>
-              <Button type="button" className="w-fit">
+              <Button type="button" className="w-full sm:w-fit">
                 <MessageSquare aria-hidden="true" data-icon="inline-start" />
                 Novo comunicado
               </Button>
@@ -197,17 +287,19 @@ export default function HomePage() {
                     <MoreHorizontal aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="flex h-56 items-end gap-3 border-b px-2 sm:gap-5">
-                  {chartItems.map((item) => (
-                    <div key={item.month} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">{item.value}</span>
-                      <div
-                        className="w-full max-w-10 rounded-t-md bg-primary/80 transition-colors hover:bg-primary"
-                        style={{ height: item.height }}
-                      />
-                      <span className="translate-y-5 text-xs text-muted-foreground">{item.month}</span>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex h-56 min-w-[28rem] items-end gap-3 border-b px-2 sm:gap-5">
+                    {chartItems.map((item) => (
+                      <div key={item.month} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                        <span className="text-xs font-medium text-muted-foreground">{item.value}</span>
+                        <div
+                          className="w-full max-w-10 rounded-t-md bg-primary/80 transition-colors hover:bg-primary"
+                          style={{ height: item.height }}
+                        />
+                        <span className="translate-y-5 text-xs text-muted-foreground">{item.month}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </section>
 
@@ -251,7 +343,7 @@ export default function HomePage() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="text-sm font-medium">{request.title}</span>
+                      <span className="break-words text-sm font-medium">{request.title}</span>
                       <span className="text-xs text-muted-foreground">{request.unit} · atualizado ontem</span>
                     </div>
                   </article>
