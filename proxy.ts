@@ -1,19 +1,20 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
 import { auth } from "@/auth"
 
-export default auth((request) => {
+export async function proxy(request: NextRequest) {
+  const session = await auth()
   const { pathname, search } = request.nextUrl
 
   if (pathname === "/login") {
-    if (request.auth) {
+    if (session) {
       return NextResponse.redirect(new URL("/home", request.url))
     }
 
     return NextResponse.next()
   }
 
-  if (request.auth) {
+  if (session) {
     return NextResponse.next()
   }
 
@@ -25,7 +26,9 @@ export default auth((request) => {
   }
 
   return NextResponse.redirect(loginUrl)
-})
+}
+
+export default proxy
 
 export const config = {
   matcher: [

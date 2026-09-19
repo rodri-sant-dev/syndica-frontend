@@ -2,12 +2,26 @@ import axios from "axios"
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 
+import {
+  ACCESS_TOKEN_REFRESH_WINDOW_MS,
+  parseJwtExpiration,
+  shouldRefreshAccessToken,
+} from "@/lib/auth-tokens"
+
 type TokensResponse = {
   accessToken?: string
   refreshToken?: string
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+type ExpirableToken = {
+  accessToken?: string
+  refreshToken?: string
+  accessTokenExpiresAt?: number
+  refreshTokenExpiresAt?: number
+  shouldLogout?: boolean
+}
+
+const nextAuth = NextAuth({
   providers: [
     Credentials({
       credentials: {
@@ -65,19 +79,134 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+      const jwtToken = token as ExpirableToken
+
       if (user) {
-        token.accessToken = user.accessToken
-        token.refreshToken = user.refreshToken
+        jwtToken.accessToken = user.accessToken
+        jwtToken.refreshToken = user.refreshToken
+        jwtToken.accessTokenExpiresAt = parseJwtExpiration(user.accessToken)
+        jwtToken.refreshTokenExpiresAt = parseJwtExpiration(user.refreshToken)
+        jwtToken.shouldLogout = false
+        return jwtToken
       }
 
-      return token
+      if (!jwtToken.accessToken || !jwtToken.refreshToken) {
+        return jwtToken
+      }
+
+      const accessTokenExpiresAt =
+        jwtToken.accessTokenExpiresAt ??
+        parseJwtExpiration(jwtToken.accessToken)
+
+      if (!shouldRefreshAccessToken(accessTokenExpiresAt)) {
+        return jwtToken
+      }
+
+      try {
+        const apiUrl = process.env.SYNDICA_API_URL
+
+        if (!apiUrl) {
+          return {
+            ...jwtToken,
+            accessToken: undefined,
+            refreshToken: undefined,
+            accessTokenExpiresAt: undefined,
+            refreshTokenExpiresAt: undefined,
+            shouldLogout: true,
+          }
+        }
+
+        const { data } = await axios.post<TokensResponse>(
+          `${apiUrl.replace(/\/$/, "")}/token/refresh/`,
+          {
+            refreshToken: jwtToken.refreshToken,
+          },
+        )
+
+        if (!data.accessToken || !data.refreshToken) {
+          return {
+            ...jwtToken,
+            accessToken: undefined,
+            refreshToken: undefined,
+            accessTokenExpiresAt: undefined,
+            refreshTokenExpiresAt: undefined,
+            shouldLogout: true,
+          }
+        }
+
+        jwtToken.accessToken = data.accessToken
+        jwtToken.refreshToken = data.refreshToken
+        jwtToken.accessTokenExpiresAt = parseJwtExpiration(data.accessToken)
+        jwtToken.refreshTokenExpiresAt = parseJwtExpiration(data.refreshToken)
+        jwtToken.shouldLogout = false
+
+        return jwtToken
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          return {
+            ...jwtToken,
+            accessToken: undefined,
+            refreshToken: undefined,
+            accessTokenExpiresAt: undefined,
+            refreshTokenExpiresAt: undefined,
+            shouldLogout: true,
+          }
+        }
+
+        throw error
+      }
     },
     async session({ session, token }) {
+      const jwtToken = token as ExpirableToken
+
+      if (jwtToken.shouldLogout) {
+        return {
+          ...session,
+          accessToken: undefined,
+          refreshToken: undefined,
+          accessTokenExpiresAt: undefined,
+          refreshTokenExpiresAt: undefined,
+          shouldLogout: true,
+        }
+      }
+
       session.accessToken =
-        typeof token.accessToken === "string" ? token.accessToken : undefined
+        typeof jwtToken.accessToken === "string"
+          ? jwtToken.accessToken
+          : undefined
       session.refreshToken =
-        typeof token.refreshToken === "string" ? token.refreshToken : undefined
+        typeof jwtToken.refreshToken === "string"
+          ? jwtToken.refreshToken
+          : undefined
+      session.accessTokenExpiresAt =
+        typeof jwtToken.accessTokenExpiresAt === "number"
+          ? jwtToken.accessTokenExpiresAt
+          : undefined
+      session.refreshTokenExpiresAt =
+        typeof jwtToken.refreshTokenExpiresAt === "number"
+          ? jwtToken.refreshTokenExpiresAt
+          : undefined
+
       return session
     },
   },
 })
+
+export const { handlers, signIn, signOut } = nextAuth
+
+const nextAuthSession = nextAuth.auth as (...args: any[]) => Promise<any>
+
+export const auth = (async (...args: any[]) => {
+  if (typeof args[0] === "function") {
+    return nextAuthSession(...args)
+  }
+
+  const session = await nextAuthSession(...args)
+
+  if (session && "shouldLogout" in session && session.shouldLogout) {
+    await signOut({ redirect: false })
+    return null
+  }
+
+  return session
+}) as typeof nextAuth.auth
