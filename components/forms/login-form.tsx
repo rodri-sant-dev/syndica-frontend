@@ -1,8 +1,42 @@
-import { Building2, Check, ChevronRight, LockKeyhole } from "lucide-react"
+"use client"
+
+import {
+  Building2,
+  Check,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+} from "lucide-react"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
+import { login } from "@/lib/actions/login"
+
+type LoginFormValues = {
+  email: string
+  password: string
+}
 
 export function LoginForm() {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const [loginStatus, setLoginStatus] = useState<{
+    success: boolean
+    message: string
+  } | null>(null)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>()
+
+  async function handleLogin(values: LoginFormValues) {
+    setLoginStatus(null)
+    const result = await login(values)
+    setLoginStatus(result)
+  }
+
   return (
     <main className="min-h-svh bg-muted/40 px-4 py-5 sm:px-6 lg:px-8">
       <div className="mx-auto grid min-h-[calc(100svh-2.5rem)] max-w-7xl overflow-hidden rounded-3xl border bg-background shadow-xl shadow-foreground/5 lg:grid-cols-[0.9fr_1.1fr]">
@@ -70,18 +104,29 @@ export function LoginForm() {
               </div>
             </div>
 
-            <form className="flex flex-col gap-5">
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={handleSubmit(handleLogin)}
+            >
               <div className="flex flex-col gap-2">
                 <label htmlFor="email" className="text-sm font-medium">
                   E-mail
                 </label>
                 <input
                   id="email"
-                  name="email"
                   type="email"
                   placeholder="voce@exemplo.com"
+                  aria-invalid={errors.email ? "true" : "false"}
+                  {...register("email", {
+                    required: "Informe seu e-mail.",
+                  })}
                   className="h-12 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
+                {errors.email && (
+                  <p className="text-xs text-destructive">
+                    {errors.email.message}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-2">
@@ -96,19 +141,68 @@ export function LoginForm() {
                     Recuperar acesso
                   </button>
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="Digite sua senha"
-                  className="h-12 rounded-xl border border-input bg-background px-4 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={isPasswordVisible ? "text" : "password"}
+                    placeholder="Digite sua senha"
+                    aria-invalid={errors.password ? "true" : "false"}
+                    {...register("password", {
+                      required: "Informe sua senha.",
+                    })}
+                    className="h-12 w-full rounded-xl border border-input bg-background px-4 pr-12 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                  <button
+                    type="button"
+                    aria-label={
+                      isPasswordVisible
+                        ? "Ocultar senha"
+                        : "Mostrar senha"
+                    }
+                    title={
+                      isPasswordVisible
+                        ? "Ocultar senha"
+                        : "Mostrar senha"
+                    }
+                    onClick={() => setIsPasswordVisible((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {isPasswordVisible ? (
+                      <EyeOff aria-hidden="true" size={16} />
+                    ) : (
+                      <Eye aria-hidden="true" size={16} />
+                    )}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive">
+                    {errors.password.message}
+                  </p>
+                )}
               </div>
 
-              <Button type="button" size="lg" className="h-12 w-full rounded-xl">
-                Entrar na plataforma
+              <Button
+                type="submit"
+                size="lg"
+                className="h-12 w-full rounded-xl"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Entrando..." : "Entrar na plataforma"}
                 <ChevronRight aria-hidden="true" data-icon="inline-end" />
               </Button>
+
+              {loginStatus && (
+                <p
+                  role={loginStatus.success ? "status" : "alert"}
+                  className={
+                    loginStatus.success
+                      ? "text-sm text-primary"
+                      : "text-sm text-destructive"
+                  }
+                >
+                  {loginStatus.message}
+                </p>
+              )}
             </form>
 
             <div className="rounded-2xl border bg-muted/30 p-4">
