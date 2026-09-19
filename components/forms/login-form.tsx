@@ -8,18 +8,24 @@ import {
   EyeOff,
   LockKeyhole,
 } from "lucide-react"
+import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
-import { login } from "@/lib/actions/login"
 
 type LoginFormValues = {
   email: string
   password: string
 }
 
-export function LoginForm() {
+export function LoginForm({
+  returnTo,
+}: {
+  returnTo?: string | string[]
+}) {
+  const router = useRouter()
   const [isPasswordVisible, setIsPasswordVisible] = useState(false)
   const [loginStatus, setLoginStatus] = useState<{
     success: boolean
@@ -33,8 +39,34 @@ export function LoginForm() {
 
   async function handleLogin(values: LoginFormValues) {
     setLoginStatus(null)
-    const result = await login(values)
-    setLoginStatus(result)
+    const redirectPath = Array.isArray(returnTo) ? returnTo[0] : returnTo
+    const callbackUrl =
+      redirectPath &&
+      redirectPath.startsWith("/") &&
+      !redirectPath.startsWith("//") &&
+      redirectPath !== "/login"
+        ? redirectPath
+        : "/home"
+    const result = await signIn("credentials", {
+      ...values,
+      redirect: false,
+      callbackUrl,
+    })
+
+    if (!result?.ok) {
+      setLoginStatus({
+        success: false,
+        message: "E-mail ou senha incorretos.",
+      })
+      return
+    }
+
+    setLoginStatus({
+      success: true,
+      message: "Usuário logado com sucesso.",
+    })
+    router.replace(result.url ?? callbackUrl)
+    router.refresh()
   }
 
   return (

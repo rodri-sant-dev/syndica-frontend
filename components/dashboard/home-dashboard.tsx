@@ -1,3 +1,5 @@
+"use client"
+
 import {
   ArrowUpRight,
   Bell,
@@ -14,8 +16,11 @@ import {
   Settings,
   UsersRound,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { logout } from "@/lib/actions/logout"
 
 const navigationItems = [
   { label: "Visão geral", icon: LayoutDashboard, active: true },
@@ -66,6 +71,16 @@ const chartItems = [
 ]
 
 export function HomeDashboard() {
+  const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  async function handleLogout() {
+    setIsLoggingOut(true)
+    await logout()
+    router.replace("/login")
+    router.refresh()
+  }
+
   return (
     <main className="min-h-svh bg-muted/40">
       <div className="flex min-h-svh w-full">
@@ -122,10 +137,12 @@ export function HomeDashboard() {
             <Button
               type="button"
               variant="ghost"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
               className="w-full justify-start gap-3 px-3 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut aria-hidden="true" data-icon="inline-start" />
-              Sair
+              {isLoggingOut ? "Saindo..." : "Sair"}
             </Button>
           </nav>
 
