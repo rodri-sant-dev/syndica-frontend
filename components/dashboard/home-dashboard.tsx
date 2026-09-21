@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import type { UserProfile } from "@/types/user"
 
 const overviewItems = [
   {
@@ -51,17 +52,30 @@ const chartItems = [
   { month: "Set", value: "92%", height: "92%" },
 ]
 
-export function HomeDashboard() {
+export function getGreeting(date: Date) {
+  const hour = date.getHours()
+  return hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite"
+}
+
+export function formatAccessDate(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "full" }).format(date)
+}
+
+export function HomeDashboard({ user }: { user?: UserProfile | null }) {
+  const now = new Date()
+  const greeting = getGreeting(now)
+  const accessDate = formatAccessDate(now)
+
   return (
     <section className="min-h-svh min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-9">
       <div className="flex w-full flex-col gap-8">
         <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
-              Sexta-feira, 18 de setembro de 2026
+              {accessDate}
             </p>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Bom dia, Ana.
+              {greeting}, {user?.username || "Ana"}.
             </h1>
             <p className="text-sm text-muted-foreground">
               Aqui está o resumo do Residencial Aurora.

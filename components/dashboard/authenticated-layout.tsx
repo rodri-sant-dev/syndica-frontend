@@ -14,14 +14,32 @@ import {
   Settings,
   UsersRound,
 } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { logout } from "@/lib/actions/logout"
+import {
+  hasUserManagementAccess,
+  type UserProfile,
+} from "@/types/user"
 
-const navigationItems = [
-  { label: "Visão geral", icon: LayoutDashboard, active: true },
+const navigationItems: Array<{
+  label: string
+  icon: typeof LayoutDashboard
+  href?: string
+  badge?: string
+  requiresSindico?: boolean
+}> = [
+  { label: "Visão geral", icon: LayoutDashboard, href: "/home" },
+  {
+    label: "Usuários",
+    icon: UsersRound,
+    href: "/users",
+    requiresSindico: true,
+  },
   { label: "Moradores", icon: UsersRound },
   { label: "Unidades", icon: Home },
   { label: "Financeiro", icon: CircleDollarSign },
@@ -32,10 +50,13 @@ const navigationItems = [
 
 export function AuthenticatedLayout({
   children,
+  user,
 }: Readonly<{
   children: React.ReactNode
+  user: UserProfile | null
 }>) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
@@ -99,23 +120,27 @@ export function AuthenticatedLayout({
             <span className="mb-2 px-3 text-[11px] font-semibold tracking-[0.16em] text-muted-foreground uppercase">
               Menu principal
             </span>
-            {navigationItems.map((item) => {
+            {navigationItems
+              .filter((item) => !item.requiresSindico || hasUserManagementAccess(user))
+              .map((item) => {
               const Icon = item.icon
+              const isActive = item.href === pathname
 
-              return (
+              return item.href ? (
                 <Button
                   key={item.label}
-                  type="button"
-                  variant={item.active ? "default" : "ghost"}
+                  render={<Link href={item.href} />}
+                  nativeButton={false}
+                  variant={isActive ? "default" : "ghost"}
                   className="w-full justify-start gap-3 px-3"
-                  aria-current={item.active ? "page" : undefined}
+                  aria-current={isActive ? "page" : undefined}
                 >
                   <Icon aria-hidden="true" data-icon="inline-start" />
                   <span className="flex-1 text-left">{item.label}</span>
                   {item.badge ? (
                     <span
                       className={
-                        item.active
+                        isActive
                           ? "rounded-full bg-primary-foreground/15 px-2 py-0.5 text-xs text-primary-foreground"
                           : "rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive"
                       }
@@ -124,8 +149,19 @@ export function AuthenticatedLayout({
                     </span>
                   ) : null}
                 </Button>
+              ) : (
+                <Button
+                  key={item.label}
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-start gap-3 px-3"
+                  disabled
+                >
+                  <Icon aria-hidden="true" data-icon="inline-start" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                </Button>
               )
-            })}
+              })}
           </nav>
 
           <div ref={profileMenuRef} className="relative mt-6 border-t pt-5">
@@ -161,7 +197,7 @@ export function AuthenticatedLayout({
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate text-sm font-medium">
-                  Ana Oliveira
+                  {user?.username || "Ana Oliveira"}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Administradora

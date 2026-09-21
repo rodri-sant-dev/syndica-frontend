@@ -1,9 +1,16 @@
 import { AuthenticatedLayout } from "@/components/dashboard/authenticated-layout"
+import { auth } from "@/auth"
+import { getCurrentUser } from "@/services/users.service"
 
-export default function AuthenticatedRouteLayout({
+export default async function AuthenticatedRouteLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <AuthenticatedLayout>{children}</AuthenticatedLayout>
+  const session = await auth()
+  const user = session?.accessToken
+    ? await getCurrentUser(session.accessToken)
+    : null
+
+  return <AuthenticatedLayout user={user}>{children}</AuthenticatedLayout>
 }
