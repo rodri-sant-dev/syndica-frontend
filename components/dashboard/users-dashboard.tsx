@@ -1,8 +1,10 @@
 "use client"
 
-import { Plus, Search, UserRound } from "lucide-react"
-import { FormEvent, useMemo, useState } from "react"
+import { Check, Eye, EyeOff, Plus, Search } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { useForm } from "react-hook-form"
 
+import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -31,14 +33,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -49,67 +43,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-
-type UserRole = "Administrador" | "Síndico" | "Morador"
+import type {
+  CreateUserPayload,
+  UserManagementRecord,
+} from "@/lib/actions/users"
 
 type User = {
-  id: number
+  id: string
   name: string
   email: string
-  role: UserRole
+  role: string
   lastAccess: string
   active: boolean
 }
 
-type UserForm = {
-  name: string
+type UserFormValues = {
+  username: string
   email: string
-  role: UserRole
+  password: string
+  confirmPassword: string
 }
 
-const initialUsers: User[] = [
-  {
-    id: 1,
-    name: "Ana Oliveira",
-    email: "ana.oliveira@syndica.com",
-    role: "Administrador",
-    lastAccess: "Hoje, 09:42",
-    active: true,
-  },
-  {
-    id: 2,
-    name: "Mariana Costa",
-    email: "mariana.costa@email.com",
-    role: "Síndico",
-    lastAccess: "Ontem, 18:20",
-    active: true,
-  },
-  {
-    id: 3,
-    name: "Rafael Mendes",
-    email: "rafael.mendes@email.com",
-    role: "Morador",
-    lastAccess: "18 set, 14:05",
-    active: true,
-  },
-  {
-    id: 4,
-    name: "Camila Rocha",
-    email: "camila.rocha@email.com",
-    role: "Morador",
-    lastAccess: "12 set, 08:30",
-    active: false,
-  },
-]
+type ConfirmDialogState =
+  | { kind: "create"; payload: UserFormValues }
+  | { kind: "toggle"; user: User; nextActive: boolean }
 
-const roleItems = [
-  { label: "Administrador", value: "Administrador" },
-  { label: "Síndico", value: "Síndico" },
-  { label: "Morador", value: "Morador" },
-]
-
-const emptyForm: UserForm = { name: "", email: "", role: "Morador" }
+type UsersDashboardProps = {
+  initialUsers: UserManagementRecord[]
+  createUserAction: (payload: CreateUserPayload) => Promise<UserManagementRecord>
+  toggleUserAction: (userId: string, active: boolean) => Promise<UserManagementRecord>
+}
 
 function initials(name: string) {
   return name
@@ -120,7 +83,36 @@ function initials(name: string) {
     .toUpperCase()
 }
 
-function roleVariant(role: UserRole) {
+function normalizeRole(grupos?: string[]) {
+  const normalized = (grupos ?? []).map((group) => group.trim().toUpperCase())
+
+  if (normalized.includes("SINDICO")) {
+    return "Síndico"
+  }
+
+  if (normalized.includes("MORADOR")) {
+    return "Morador"
+  }
+
+  if (normalized.includes("ADMIN")) {
+    return "Administrador"
+  }
+
+  return "Morador"
+}
+
+function mapUser(user: UserManagementRecord): User {
+  return {
+    id: user.id,
+    name: user.username,
+    email: user.email,
+    role: normalizeRole(user.grupos),
+    lastAccess: "Sem registro",
+    active: user.active,
+  }
+}
+
+function roleVariant(role: string) {
   return role === "Administrador"
     ? "default"
     : role === "Síndico"
@@ -128,61 +120,147 @@ function roleVariant(role: UserRole) {
       : "outline"
 }
 
-export function UsersDashboard() {
-  const [users, setUsers] = useState(initialUsers)
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    const statusLike = (error as Error & { status?: number }).status
+    if (statusLike && statusLike >= 500) {
+      return "Something went wrong while processing your request. Please try again in a moment."
+    }
+
+    return error.message
+  }
+
+  return fallback
+}
+
+export function UsersDashboard({
+  initialUsers,
+  createUserAction,
+  toggleUserAction,
+}: UsersDashboardProps) {
+  const [users, setUsers] = useState<User[]>(() => initialUsers.map(mapUser))
   const [query, setQuery] = useState("")
-  const [form, setForm] = useState<UserForm>(emptyForm)
-  const [errors, setErrors] = useState<Partial<Record<keyof UserForm, string>>>(
-    {}
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(
+    null,
   )
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [feedback, setFeedback] = useState("")
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error"
+    message: string
+  } | null>(null)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
+    useState(false)
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<UserFormValues>({
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  })
+
+  const password = watch("password") ?? ""
+  const passwordChecks = [
+    { label: "8 ou mais caracteres", ok: password.length >= 8 },
+    { label: "Ao menos uma letra maiúscula", ok: /[A-Z]/.test(password) },
+    { label: "Ao menos uma letra minúscula", ok: /[a-z]/.test(password) },
+    { label: "Ao menos um número", ok: /\d/.test(password) },
+    {
+      label: "Ao menos um caractere especial",
+      ok: /[^A-Za-z0-9]/.test(password),
+    },
+  ]
+
+  useEffect(() => {
+    setUsers(initialUsers.map(mapUser))
+  }, [initialUsers])
+
+  useEffect(() => {
+    if (!feedback) {
+      return
+    }
+
+    const timer = window.setTimeout(() => setFeedback(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [feedback])
 
   const filteredUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    if (!normalizedQuery) return users
+
+    if (!normalizedQuery) {
+      return users
+    }
+
     return users.filter((user) =>
       [user.name, user.email, user.role].some((value) =>
-        value.toLowerCase().includes(normalizedQuery)
-      )
+        value.toLowerCase().includes(normalizedQuery),
+      ),
     )
   }, [query, users])
 
-  function toggleUser(id: number, active: boolean) {
-    setUsers((currentUsers) =>
-      currentUsers.map((user) => (user.id === id ? { ...user, active } : user))
-    )
-    const user = users.find((item) => item.id === id)
-    if (user)
-      setFeedback(`${user.name} foi ${active ? "ativado" : "desativado"}.`)
-  }
-
-  function validateForm() {
-    const nextErrors: typeof errors = {}
-    if (form.name.trim().length < 3)
-      nextErrors.name = "Informe o nome completo."
-    if (!/^\S+@\S+\.\S+$/.test(form.email))
-      nextErrors.email = "Informe um e-mail válido."
-    setErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!validateForm()) return
-    const newUser: User = {
-      id: Math.max(...users.map((user) => user.id), 0) + 1,
-      name: form.name.trim(),
-      email: form.email.trim(),
-      role: form.role,
-      lastAccess: "Ainda não acessou",
-      active: true,
+  async function handleConfirmAction() {
+    if (!confirmDialog) {
+      return
     }
-    setUsers((currentUsers) => [newUser, ...currentUsers])
-    setForm(emptyForm)
-    setErrors({})
-    setIsDialogOpen(false)
-    setFeedback(`${newUser.name} foi adicionado à lista de usuários.`)
+
+    setIsConfirmingAction(true)
+
+    try {
+      if (confirmDialog.kind === "create") {
+        const payload = {
+          username: confirmDialog.payload.username.trim(),
+          email: confirmDialog.payload.email.trim(),
+          password: confirmDialog.payload.password,
+        }
+
+        const createdUser = await createUserAction(payload)
+        const nextUser = mapUser(createdUser)
+
+        setUsers((currentUsers) => [nextUser, ...currentUsers])
+        setFeedback({
+          type: "success",
+          message: `${nextUser.name} foi adicionado com sucesso.`,
+        })
+        reset()
+      }
+
+      if (confirmDialog.kind === "toggle") {
+        const toggledUser = await toggleUserAction(
+          confirmDialog.user.id,
+          confirmDialog.nextActive,
+        )
+        const nextUser = mapUser(toggledUser)
+
+        setUsers((currentUsers) =>
+          currentUsers.map((user) =>
+            user.id === confirmDialog.user.id ? nextUser : user,
+          ),
+        )
+        setFeedback({
+          type: "success",
+          message: `${nextUser.name} foi ${nextUser.active ? "ativado" : "desativado"}.`,
+        })
+      }
+
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: getErrorMessage(error, "Não foi possível concluir a operação."),
+      })
+    } finally {
+      setConfirmDialog(null)
+      setIsCreateDialogOpen(false)
+      setIsConfirmingAction(false)
+    }
   }
 
   return (
@@ -197,10 +275,11 @@ export function UsersDashboard() {
               Usuários
             </h1>
             <p className="text-sm text-muted-foreground">
-              Gerencie os acessos e perfis do Residencial Aurora.
+              Gerencie permissões e acessos do Residencial Aurora.
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger render={<Button />}>
               <Plus aria-hidden="true" data-icon="inline-start" />
               Novo usuário
@@ -209,75 +288,163 @@ export function UsersDashboard() {
               <DialogHeader>
                 <DialogTitle>Novo usuário</DialogTitle>
                 <DialogDescription>
-                  Preencha os dados para adicionar um novo acesso.
+                  Informe os dados do novo acesso e confirme antes de salvar.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={handleSubmit((values) => {
+                  setConfirmDialog({ kind: "create", payload: values })
+                })}
+              >
                 <FieldGroup>
-                  <Field data-invalid={Boolean(errors.name)}>
+                  <Field data-invalid={Boolean(errors.username)}>
                     <FieldLabel htmlFor="user-name">Nome completo</FieldLabel>
                     <Input
                       id="user-name"
-                      value={form.name}
-                      aria-invalid={Boolean(errors.name)}
-                      onChange={(event) =>
-                        setForm({ ...form, name: event.target.value })
-                      }
+                      aria-invalid={Boolean(errors.username)}
+                      {...register("username", {
+                        required: "Informe o nome completo.",
+                        minLength: {
+                          value: 3,
+                          message: "O nome deve ter pelo menos 3 caracteres.",
+                        },
+                      })}
                     />
-                    {errors.name ? (
-                      <FieldError>{errors.name}</FieldError>
+                    {errors.username ? (
+                      <FieldError>{errors.username.message}</FieldError>
                     ) : null}
                   </Field>
+
                   <Field data-invalid={Boolean(errors.email)}>
                     <FieldLabel htmlFor="user-email">E-mail</FieldLabel>
                     <Input
                       id="user-email"
                       type="email"
-                      value={form.email}
                       aria-invalid={Boolean(errors.email)}
-                      onChange={(event) =>
-                        setForm({ ...form, email: event.target.value })
-                      }
+                      {...register("email", {
+                        required: "Informe o e-mail.",
+                        pattern: {
+                          value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                          message: "Informe um e-mail válido.",
+                        },
+                      })}
                     />
                     {errors.email ? (
-                      <FieldError>{errors.email}</FieldError>
+                      <FieldError>{errors.email.message}</FieldError>
                     ) : (
                       <FieldDescription>
-                        Será usado para entrar na plataforma.
+                        Será usado para acesso e comunicação.
                       </FieldDescription>
                     )}
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="user-role">Perfil</FieldLabel>
-                    <Select
-                      items={roleItems}
-                      value={form.role}
-                      onValueChange={(value) =>
-                        setForm({ ...form, role: value as UserRole })
-                      }
-                    >
-                      <SelectTrigger id="user-role" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {roleItems.map((item) => (
-                            <SelectItem key={item.value} value={item.value}>
-                              {item.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+
+                  <Field data-invalid={Boolean(errors.password)}>
+                    <FieldLabel htmlFor="user-password">Senha</FieldLabel>
+                    <div className="relative">
+                      <Input
+                        id="user-password"
+                        type={isPasswordVisible ? "text" : "password"}
+                        aria-invalid={Boolean(errors.password)}
+                        {...register("password", {
+                          required: "Informe a senha.",
+                          validate: (value) =>
+                            passwordChecks.every((check) => check.ok) ||
+                            "A senha precisa atender a todos os requisitos.",
+                        })}
+                        className="pr-12"
+                      />
+                      <button
+                        type="button"
+                        aria-label={
+                          isPasswordVisible ? "Ocultar senha" : "Mostrar senha"
+                        }
+                        onClick={() => setIsPasswordVisible((visible) => !visible)}
+                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-muted-foreground hover:text-foreground"
+                      >
+                        {isPasswordVisible ? (
+                          <EyeOff aria-hidden="true" size={16} />
+                        ) : (
+                          <Eye aria-hidden="true" size={16} />
+                        )}
+                      </button>
+                    </div>
+                    {errors.password ? (
+                      <FieldError>{errors.password.message}</FieldError>
+                    ) : (
+                      <div className="mt-2 grid gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                        {passwordChecks.map((check) => (
+                          <div
+                            key={check.label}
+                            className="flex items-center gap-2"
+                          >
+                            <span
+                              className={
+                                check.ok
+                                  ? "flex size-4 items-center justify-center rounded-full bg-primary/10 text-primary"
+                                  : "flex size-4 items-center justify-center rounded-full border border-muted-foreground/40"
+                              }
+                            >
+                              {check.ok ? <Check size={10} aria-hidden="true" /> : null}
+                            </span>
+                            <span>{check.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Field>
+
+                  <Field data-invalid={Boolean(errors.confirmPassword)}>
+                    <FieldLabel htmlFor="user-confirm-password">
+                      Confirmar senha
+                    </FieldLabel>
+                    <div className="relative">
+                      <Input
+                        id="user-confirm-password"
+                        type={isConfirmPasswordVisible ? "text" : "password"}
+                        aria-invalid={Boolean(errors.confirmPassword)}
+                        {...register("confirmPassword", {
+                          required: "Confirme a senha.",
+                          validate: (value) =>
+                            value === password || "As senhas não coincidem.",
+                        })}
+                        className="pr-12"
+                      />
+                      <button
+                        type="button"
+                        aria-label={
+                          isConfirmPasswordVisible
+                            ? "Ocultar confirmação da senha"
+                            : "Mostrar confirmação da senha"
+                        }
+                        onClick={() =>
+                          setIsConfirmPasswordVisible((visible) => !visible)
+                        }
+                        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-muted-foreground hover:text-foreground"
+                      >
+                        {isConfirmPasswordVisible ? (
+                          <EyeOff aria-hidden="true" size={16} />
+                        ) : (
+                          <Eye aria-hidden="true" size={16} />
+                        )}
+                      </button>
+                    </div>
+                    {errors.confirmPassword ? (
+                      <FieldError>{errors.confirmPassword.message}</FieldError>
+                    ) : null}
                   </Field>
                 </FieldGroup>
+
                 <DialogFooter>
                   <DialogClose
                     render={<Button type="button" variant="outline" />}
                   >
                     Cancelar
                   </DialogClose>
-                  <Button type="submit">Adicionar usuário</Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Validando..." : "Adicionar usuário"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -285,48 +452,51 @@ export function UsersDashboard() {
         </header>
 
         {feedback ? (
-          <p
-            role="status"
+          <div
+            role={feedback.type === "success" ? "status" : "alert"}
             aria-live="polite"
-            className="text-sm font-medium text-primary"
+            className={
+              feedback.type === "success"
+                ? "fixed right-4 bottom-4 z-50 max-w-sm rounded-xl border border-primary/20 bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg"
+                : "fixed right-4 bottom-4 z-50 max-w-sm rounded-xl border border-destructive/20 bg-destructive px-4 py-3 text-sm font-medium text-destructive-foreground shadow-lg"
+            }
           >
-            {feedback}
-          </p>
+            {feedback.message}
+          </div>
         ) : null}
 
         <Card>
           <CardHeader>
             <CardTitle>Lista de usuários</CardTitle>
             <CardDescription>
-              Confira quem pode acessar a gestão condominial e altere o status
-              quando necessário.
+              Consulte os acessos ativos e altere o status do usuário conforme
+              necessário.
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <Field className="sm:max-w-sm">
-                <FieldLabel htmlFor="user-search" className="sr-only">
-                  Pesquisar usuários
-                </FieldLabel>
-                <div className="relative">
-                  <Search
-                    aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Input
-                    id="user-search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Pesquisar por nome, e-mail ou perfil"
-                    className="pl-9"
-                  />
-                </div>
-              </Field>
+              <div className="relative sm:max-w-sm">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  id="user-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Pesquisar por nome, e-mail ou perfil"
+                  className="pl-9"
+                />
+              </div>
+
               <p className="text-sm text-muted-foreground">
                 {filteredUsers.length} de {users.length} usuários
               </p>
             </div>
+
             <Separator className="my-5" />
+
             <div className="hidden md:block">
               <Table>
                 <TableHeader>
@@ -334,7 +504,6 @@ export function UsersDashboard() {
                     <TableHead>Usuário</TableHead>
                     <TableHead>Perfil</TableHead>
                     <TableHead>Último acesso</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Acesso</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -344,9 +513,7 @@ export function UsersDashboard() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            <AvatarFallback>
-                              {initials(user.name)}
-                            </AvatarFallback>
+                            <AvatarFallback>{initials(user.name)}</AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col gap-0.5">
                             <span className="font-medium">{user.name}</span>
@@ -356,25 +523,28 @@ export function UsersDashboard() {
                           </div>
                         </div>
                       </TableCell>
+
                       <TableCell>
-                        <Badge variant={roleVariant(user.role)}>
-                          {user.role}
-                        </Badge>
+                        <Badge variant={roleVariant(user.role)}>{user.role}</Badge>
                       </TableCell>
+
                       <TableCell className="text-muted-foreground">
                         {user.lastAccess}
                       </TableCell>
+
                       <TableCell>
-                        <Badge variant={user.active ? "secondary" : "outline"}>
-                          {user.active ? "Ativo" : "Inativo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end">
+                        <div className="flex items-center justify-end gap-3">
+                          <span className="text-sm text-muted-foreground">
+                            {user.active ? "Ativo" : "Inativo"}
+                          </span>
                           <Switch
                             checked={user.active}
-                            onCheckedChange={(checked) =>
-                              toggleUser(user.id, checked)
+                            onCheckedChange={() =>
+                              setConfirmDialog({
+                                kind: "toggle",
+                                user,
+                                nextActive: !user.active,
+                              })
                             }
                             aria-label={`${user.active ? "Desativar" : "Ativar"} ${user.name}`}
                           />
@@ -385,6 +555,7 @@ export function UsersDashboard() {
                 </TableBody>
               </Table>
             </div>
+
             <div className="flex flex-col gap-3 md:hidden">
               {filteredUsers.map((user) => (
                 <article
@@ -397,42 +568,89 @@ export function UsersDashboard() {
                         <AvatarFallback>{initials(user.name)}</AvatarFallback>
                       </Avatar>
                       <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="truncate font-medium">
-                          {user.name}
-                        </span>
+                        <span className="truncate font-medium">{user.name}</span>
                         <span className="truncate text-xs text-muted-foreground">
                           {user.email}
                         </span>
                       </div>
                     </div>
+
                     <Switch
                       checked={user.active}
-                      onCheckedChange={(checked) =>
-                        toggleUser(user.id, checked)
+                      onCheckedChange={() =>
+                        setConfirmDialog({
+                          kind: "toggle",
+                          user,
+                          nextActive: !user.active,
+                        })
                       }
                       aria-label={`${user.active ? "Desativar" : "Ativar"} ${user.name}`}
                     />
                   </div>
+
                   <div className="flex items-center justify-between gap-3 text-sm">
                     <Badge variant={roleVariant(user.role)}>{user.role}</Badge>
-                    <span className="text-muted-foreground">
-                      {user.lastAccess}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <UserRound aria-hidden="true" data-icon="inline-start" />
-                    {user.active ? "Acesso liberado" : "Acesso bloqueado"}
+                    <span className="text-muted-foreground">{user.lastAccess}</span>
                   </div>
                 </article>
               ))}
             </div>
           </CardContent>
+
           <CardFooter className="border-t text-xs text-muted-foreground">
-            As alterações são mockadas e ficam disponíveis apenas nesta sessão.
+            As alterações são sincronizadas com o backend em tempo real.
           </CardFooter>
         </Card>
       </div>
+
+      <Dialog
+        open={Boolean(confirmDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmDialog(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar operação</DialogTitle>
+            <DialogDescription>
+              {confirmDialog?.kind === "create"
+                ? "Deseja cadastrar este usuário no condomínio?"
+                : confirmDialog?.kind === "toggle"
+                  ? `Deseja ${confirmDialog.nextActive ? "ativar" : "inativar"} o acesso de ${confirmDialog.user.name}?`
+                  : "Confirme a operação para continuar."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {confirmDialog?.kind === "create" ? (
+              <>
+                <p>Nome: {confirmDialog.payload.username}</p>
+                <p>E-mail: {confirmDialog.payload.email}</p>
+                <p>Senha: será cadastrada conforme os requisitos da política.</p>
+              </>
+            ) : confirmDialog?.kind === "toggle" ? (
+              <p>
+                O usuário ficará <strong>{confirmDialog.nextActive ? "ativo" : "inativo"}</strong> a partir desta confirmação.
+              </p>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              Cancelar
+            </DialogClose>
+            <Button
+              type="button"
+              onClick={handleConfirmAction}
+              disabled={isConfirmingAction}
+            >
+              {isConfirmingAction ? "Confirmando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
