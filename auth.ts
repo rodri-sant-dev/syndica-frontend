@@ -3,10 +3,10 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 
 import {
-  ACCESS_TOKEN_REFRESH_WINDOW_MS,
   parseJwtExpiration,
   shouldRefreshAccessToken,
 } from "@/lib/auth-tokens"
+import { refreshTokens } from "@/lib/refresh-tokens"
 
 type TokensResponse = {
   accessToken?: string
@@ -30,16 +30,10 @@ const nextAuth = NextAuth({
       },
       async authorize(credentials) {
         const apiUrl = process.env.SYNDICA_API_URL
-        const email =
-          typeof credentials?.email === "string" ? credentials.email : ""
-        const password =
-          typeof credentials?.password === "string"
-            ? credentials.password
-            : ""
+        const email = typeof credentials?.email === "string" ? credentials.email : ""
+        const password = typeof credentials?.password === "string" ? credentials.password : ""
 
-        if (!apiUrl || !email || !password) {
-          return null
-        }
+        if (!apiUrl || !email || !password) { return null }
 
         try {
           const { data } = await axios.post<TokensResponse>(
@@ -116,11 +110,9 @@ const nextAuth = NextAuth({
           }
         }
 
-        const { data } = await axios.post<TokensResponse>(
+        const data = await refreshTokens(
           `${apiUrl.replace(/\/$/, "")}/token/refresh/`,
-          {
-            refreshToken: jwtToken.refreshToken,
-          },
+          jwtToken.refreshToken,
         )
 
         if (!data.accessToken || !data.refreshToken) {
@@ -170,22 +162,10 @@ const nextAuth = NextAuth({
         }
       }
 
-      session.accessToken =
-        typeof jwtToken.accessToken === "string"
-          ? jwtToken.accessToken
-          : undefined
-      session.refreshToken =
-        typeof jwtToken.refreshToken === "string"
-          ? jwtToken.refreshToken
-          : undefined
-      session.accessTokenExpiresAt =
-        typeof jwtToken.accessTokenExpiresAt === "number"
-          ? jwtToken.accessTokenExpiresAt
-          : undefined
-      session.refreshTokenExpiresAt =
-        typeof jwtToken.refreshTokenExpiresAt === "number"
-          ? jwtToken.refreshTokenExpiresAt
-          : undefined
+      session.accessToken = typeof jwtToken.accessToken === "string" ? jwtToken.accessToken : undefined
+      session.refreshToken = typeof jwtToken.refreshToken === "string" ? jwtToken.refreshToken : undefined
+      session.accessTokenExpiresAt = typeof jwtToken.accessTokenExpiresAt === "number" ? jwtToken.accessTokenExpiresAt : undefined
+      session.refreshTokenExpiresAt = typeof jwtToken.refreshTokenExpiresAt === "number" ? jwtToken.refreshTokenExpiresAt : undefined
 
       return session
     },
@@ -204,7 +184,7 @@ export const auth = (async (...args: any[]) => {
   const session = await nextAuthSession(...args)
 
   if (session && "shouldLogout" in session && session.shouldLogout) {
-    await signOut({ redirect: false })
+    // await signOut({ redirect: false })
     return null
   }
 
